@@ -511,7 +511,6 @@ def _linux_parse(line, s):
         }
         try:
             output_line['destination_ip'] = s.destination_ip
-            output_line['sent_bytes'] = line.split()[timestamp_offset]
             output_line['response_ip'] = line.split()[1+timestamp_offset]
         except Exception:
             pass
