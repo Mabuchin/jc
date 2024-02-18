@@ -492,35 +492,32 @@ def _linux_parse(line, s):
     else:
         err = _error_type_v6(line)
 
+    timestamp_offset = 0
+    if line[0] == '[':
+        timestamp_offset = 1
+
     if err:
         output_line = {
             'type': err
         }
         try:
-            output_line['sent_bytes'] = line.split()[0]
+            output_line['sent_bytes'] = line.split()[s.sent_bytes]
             output_line['destination_ip'] = s.destination_ip
-            output_line['response_ip'] = line.split()[1]
+            output_line['response_ip'] = line.split()[timestamp_offset + 1]
+            output_line['icmp_seq'] = line.replace('=', ' ').split()[timestamp_offset + 2]
         except Exception:
             pass
         return output_line
 
     # request timeout
     if 'no answer yet for icmp_seq=' in line:
-        timestamp = False
-        isequence = 5
-
-        # if timestamp option is specified, then shift icmp sequence field right by one
-        if line[0] == '[':
-            timestamp = True
-            isequence = 6
-
         output_line = {
             'type': 'timeout',
             'destination_ip': s.destination_ip or None,
             'sent_bytes': s.sent_bytes or None,
             'pattern': s.pattern or None,
             'timestamp': line.split()[0].lstrip('[').rstrip(']') if timestamp else None,
-            'icmp_seq': line.replace('=', ' ').split()[isequence]
+            'icmp_seq': line.replace('=', ' ').split()[ timestamp_offset + 5]
         }
 
         return output_line
