@@ -504,14 +504,20 @@ def _linux_parse(line, s):
     else:
         err = _error_type_v6(line)
 
+    timestamp_offset = 0
+    if line[0] == '[':
+        timestamp_offset = 1
+
     if err:
         timestamp_offset = 0 if s.timestamp else 1
         output_line = {
             'type': err
         }
         try:
+            output_line['sent_bytes'] = line.split()[s.sent_bytes]
             output_line['destination_ip'] = s.destination_ip
-            output_line['response_ip'] = line.split()[1+timestamp_offset]
+            output_line['response_ip'] = line.split()[timestamp_offset + 1]
+            output_line['icmp_seq'] = line.replace('=', ' ').split()[timestamp_offset + 2]
         except Exception:
             pass
         return output_line
@@ -523,8 +529,8 @@ def _linux_parse(line, s):
             'destination_ip': s.destination_ip or None,
             'sent_bytes': s.sent_bytes or None,
             'pattern': s.pattern or None,
-            'timestamp': line.split()[0].lstrip('[').rstrip(']') if s.timestamp else None,
-            'icmp_seq': line.replace('=', ' ').split()[6 if s.timestamp else 5]
+            'timestamp': line.split()[0].lstrip('[').rstrip(']') if timestamp else None,
+            'icmp_seq': line.replace('=', ' ').split()[ timestamp_offset + 5]
         }
 
         return output_line
