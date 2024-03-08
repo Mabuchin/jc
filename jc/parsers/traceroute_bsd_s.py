@@ -64,7 +64,6 @@ from jc.streaming import (
     add_jc_meta, streaming_input_type_check, streaming_line_input_type_check, raise_or_yield
 )
 
-
 class info():
     """Provides parser metadata (version, author, etc.)"""
     version = '1.0'
@@ -72,13 +71,14 @@ class info():
     author = 'Kelly Brazil'
     author_email = 'kellyjonbrazil@gmail.com'
     details = 'Using the trparse library by Luis Benitez at https://github.com/lbenitez000/trparse'
-    compatible = ['linux', 'darwin', 'freebsd']
+    compatible = ['darwin', 'freebsd']
     magic_commands = ['traceroute-s', 'traceroute6-s']
     tags = ['command']
     streaming = True
 
 
 __version__ = info.version
+
 
 '''
 Copyright (C) 2015 Luis Benitez
@@ -108,10 +108,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 '''
 
-RE_HEADER = re.compile(r'traceroute to (\S+)\s+\((\S+)\), (\d+) hops max, (\d+) byte packets')
-RE_PROBE = re.compile(r'(\S+) \((\S+)\)(?: \[(AS\d+|\*)\])?\s*((?:\d+\.\d+ ms(?: \!\S+)?\s*)+)')
-RE_PROBE_RTT_ANNOTATION = re.compile(r'(\d+\.\d+) ms(?: \!(\S+))?')
+RE_HEADER = re.compile(r'(\S+)\s+\((\d+\.\d+\.\d+\.\d+|[0-9a-fA-F:]+)\), (\d+) hops max, (\d+) byte packets')
+RE_PROBE_NAME_IP = re.compile(r'(\S+)\s+\((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[0-9a-fA-F:]+)\)+')
+RE_PROBE_IP_ONLY = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+([^\(])')
+RE_PROBE_IPV6_ONLY = re.compile(r'(([a-f0-9:]+:+)+[a-f0-9]+)')
+RE_PROBE_BSD_IPV6 = re.compile(r'\b(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}\b')
 RE_HOP = re.compile(r'^\s*(\d+)?\s+(.+)$')
+RE_PROBE_ASN = re.compile(r'\[AS(\d+)\]')
+RE_PROBE_RTT_ANNOTATION = re.compile(r'(?:(\d+(?:\.?\d+)?)\s+ms|(\s+\*\s+))\s*(!\S*)?')
 
 class _Hop(object):
     def __init__(self, idx):
@@ -190,29 +194,56 @@ def _parse_hop(line):
         hop = _Hop(hop_index)
 
         hop_string = hop_match.group(2)
-        if not RE_PROBE.match(hop_string):
-            hop.probes = [_Probe(name="*") for _ in range(3)]
-            return hop
+        probe_asn_match = RE_PROBE_ASN.search(hop_string)
+        if probe_asn_match:
+            probe_asn = int(probe_asn_match.group(1))
+        else:
+            probe_asn = None
 
-        # Find all probes for the current hop
-        probes = RE_PROBE.findall(hop_string)
-        probes_list = []
-        # Build probes list for current hop
-        for name, ip, asn, latencies_str in probes:
-            matches = RE_PROBE_RTT_ANNOTATION.findall(latencies_str)
-            latencies_annotations = [(float(lat), ann if ann else None) for lat, ann in matches]
-            asn_integer = int(asn[2:]) if asn.startswith("AS") else None
-            for latency, annotation in latencies_annotations:
-                _probe = _Probe(
-                    name=name,
-                    ip=ip,
-                    asn=asn_integer,
-                    rtt=latency,
-                    annotation=annotation
-                )
-                probes_list.append(_probe)
-        hop.probes = probes_list
-    return hop
+        probe_ip_only_match = RE_PROBE_IP_ONLY.search(hop_string)
+        probe_name_ip_match = RE_PROBE_NAME_IP.search(hop_string)
+        probe_bsd_ipv6_match = RE_PROBE_BSD_IPV6.search(hop_string)
+        probe_ipv6_only_match = RE_PROBE_IPV6_ONLY.search(hop_string)
+        if probe_ip_only_match:
+            probe_name = None
+            probe_ip = probe_ip_only_match.group(1)
+        elif probe_name_ip_match:
+            probe_name = probe_name_ip_match.group(1)
+            probe_ip = probe_name_ip_match.group(2)
+        elif probe_bsd_ipv6_match:
+            probe_name = None
+            probe_ip = probe_bsd_ipv6_match.group(0)
+        elif probe_ipv6_only_match:
+            probe_name = None
+            probe_ip = probe_ipv6_only_match.group(1)
+        else:
+            probe_name = None
+            probe_ip = None
+
+        probe_rtt_annotations = RE_PROBE_RTT_ANNOTATION.findall(hop_string)
+        for probe_rtt_annotation in probe_rtt_annotations:
+            if probe_rtt_annotation[0]:
+                probe_rtt = Decimal(probe_rtt_annotation[0])
+            elif probe_rtt_annotation[1]:
+                probe_rtt = None
+            else:
+                message = f"Expected probe RTT or *. Got: '{probe_rtt_annotation[0]}'"
+                raise ParseError(message)
+
+            probe_annotation = probe_rtt_annotation[2] or None
+
+            probe = _Probe(
+                name=probe_name,
+                ip=probe_ip,
+                asn=probe_asn,
+                rtt=probe_rtt,
+                annotation=probe_annotation
+            )
+
+            # only add probe if there is data
+            if any([probe_name, probe_ip, probe_asn, probe_rtt, probe_annotation]):
+                hop.add_probe(probe)
+        return hop
 
 
 class ParseError(Exception):

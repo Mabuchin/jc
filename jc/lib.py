@@ -199,6 +199,7 @@ parsers: List[str] = [
     'traceroute',
     'tune2fs',
     'traceroute-s',
+    'traceroute-bsd-s',
     'udevadm',
     'ufw',
     'ufw-appinfo',
