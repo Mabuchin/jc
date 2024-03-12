@@ -109,7 +109,7 @@ SOFTWARE.
 '''
 
 RE_HEADER = re.compile(r'traceroute to (\S+)\s+\((\S+)\), (\d+) hops max, (\d+) byte packets')
-RE_PROBE = re.compile(r'(\S+) \((\S+)\)(?: \[(AS\d+|\*)\])?\s*((?:\d+\.\d+ ms(?: \!\S+)?\s*)+)')
+RE_PROBE = re.compile(r'(\S+) \((\S+)\)(?: \[(AS\d+|[\*!]+)\])?\s*((?:\d+\.\d+ ms(?: \!\S+)?\s*)+)')
 RE_PROBE_RTT_ANNOTATION = re.compile(r'(\d+\.\d+) ms(?: \!(\S+))?')
 RE_HOP = re.compile(r'^\s*(\d+)?\s+(.+)$')
 
