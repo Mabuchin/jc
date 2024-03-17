@@ -201,12 +201,12 @@ def _parse_hop(line):
         for name, ip, asn, latencies_str in probes:
             matches = RE_PROBE_RTT_ANNOTATION.findall(latencies_str)
             latencies_annotations = [(float(lat), ann if ann else None) for lat, ann in matches]
-            asn_integer = int(asn[2:]) if asn.startswith("AS") else None
+            parsed_asn = int(asn[2:]) if asn.startswith("AS") else asn
             for latency, annotation in latencies_annotations:
                 _probe = _Probe(
                     name=name,
                     ip=ip,
-                    asn=asn_integer,
+                    asn=parsed_asn,
                     rtt=latency,
                     annotation=annotation
                 )
@@ -233,7 +233,7 @@ def _process(proc_data):
 
         Dictionary. Structured to conform to the schema.
     """
-    int_list = {'hop', 'asn'}
+    int_list = {'hop'}
     float_list = {'rtt'}
 
     for key in proc_data:
