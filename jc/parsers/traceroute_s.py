@@ -201,7 +201,7 @@ def _parse_hop(line):
         for name, ip, asn, latencies_str in probes:
             matches = RE_PROBE_RTT_ANNOTATION.findall(latencies_str)
             latencies_annotations = [(float(lat), ann if ann else None) for lat, ann in matches]
-            parsed_asn = int(asn[2:]) if asn.startswith("AS") else asn
+            parsed_asn = asn[2:] if asn.startswith("AS") else asn
             for latency, annotation in latencies_annotations:
                 _probe = _Probe(
                     name=name,
